@@ -19,6 +19,7 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
         
 public class KMeans {
    public static class Map extends Mapper<LongWritable, Text, Point, Point> {
+	    public static Point nullPoint = new Point();
 	    public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
 	        List<Point> centroids = new ArrayList<Point>();
 	        
@@ -34,16 +35,21 @@ public class KMeans {
 	        
 	        // Calculate minimum distance of each point in chunk to centroids to get best centroid	
 	        Point x = new Point(value.toString());
+	        double cost = 0;
 	        double minDistance = Double.MAX_VALUE;
 	        Point bestCentroid = x;
 	        for(Point c: centroids){
-	        	double dist = x.getDistance(c);
+	        	if(c.getDim() == 0) continue;  // skip the null point
+	        	double dist = x.getDistance(c);	        	
 	        	if(dist < minDistance){
 	        		minDistance = dist;
-	        		bestCentroid = c;
+	        		bestCentroid = c;	
 	        	}
 	        }
+	        cost += (minDistance*minDistance);
 	        context.write(bestCentroid, x);
+	        Point costPoint = new Point(cost);
+	        context.write(nullPoint,costPoint);
 	    }
    } 
 	        
@@ -56,22 +62,29 @@ public class KMeans {
 			int count = 0;
 			Point centroid = key;
 			int dim = centroid.getDim();
-			
-			// calculate mean of values to get new centroid
-			RealVector newCentroidVector = new ArrayRealVector(dim);
-			for(Point x: values){
-				newCentroidVector = newCentroidVector.add(x.getVector());
-				count++;
+			if(dim == 0){
+				Double cost = 0.0;
+				for(Point x: values){
+					cost += x.getCost();
+				}				
+				context.write(centroid,new Text(cost.toString()));
+			} else {
+				// calculate mean of values to get new centroid
+				RealVector newCentroidVector = new ArrayRealVector(dim);
+				for(Point x: values){
+					newCentroidVector = newCentroidVector.add(x.getVector());
+					count++;
+				}
+				newCentroidVector = newCentroidVector.mapDivide(count);
+				Point newCentroid = new Point(newCentroidVector);
+				context.write(newCentroid,txt);
 			}
-			newCentroidVector = newCentroidVector.mapDivide(count);
-			Point newCentroid = new Point(newCentroidVector);
-			context.write(newCentroid,txt);
 	    }
    }
         
 	 public static void main(String[] args) throws Exception {
 	    Configuration conf = new Configuration();
-	    conf.set("centroids","/user/rbandyopadhyay/c1.txt");
+	    conf.set("centroids","/user/rbandyopadhyay/c2.txt");
 	    int maxIter = 20;
 	    for(int i = 0; i < maxIter; i++){
 	    	String iterStr = Integer.toString(i);

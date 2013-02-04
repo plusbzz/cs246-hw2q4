@@ -10,9 +10,10 @@ import org.apache.hadoop.io.WritableComparable;
 
 
 public class Point implements WritableComparable<Point> {
-   	private RealVector vector;
-   	private int dim;
-	   	
+   	private RealVector vector = null;
+   	private int dim = 0;
+	private double cost = 0.0;
+	
    	public Point(){}
    	
    	public Point(RealVector v){
@@ -20,17 +21,33 @@ public class Point implements WritableComparable<Point> {
    		this.dim = v.getDimension();
    	}
    	
+   	public Point(double d){
+   		this.cost = d;
+   	}
+
 	public Point(String s){
 	   	String [] coords = s.split("\\s");
-   		this.dim = coords.length;
-   		this.vector = new ArrayRealVector(this.dim);
-   		
-   		for(int i = 0; i < this.dim;i++){
-   			Double d = new Double(coords[i]);
-   			this.vector.setEntry(i, d);
-   		}
+	   	if(coords[0].equals("NULL")){
+	   		this.cost = new Double(coords[1]);
+	   	} else {
+	   		this.dim = coords.length;
+	   		this.vector = new ArrayRealVector(this.dim);
+	   		
+	   		for(int i = 0; i < this.dim;i++){
+	   			Double d = new Double(coords[i]);
+	   			this.vector.setEntry(i, d);
+	   		}
+	   	}
    	}
-   	
+	
+    public double getCost() {
+		return cost;
+	}
+
+	public void setCost(double cost) {
+		this.cost = cost;
+	}
+	   	
     public RealVector getVector(){
     	return vector;
     }
@@ -45,13 +62,13 @@ public class Point implements WritableComparable<Point> {
 
     @Override
     public int compareTo(Point that) {
+    	int thatDim = that.getDim();
+    	int thisDim = dim;
+    	
+    	if(thisDim != thatDim || thisDim == 0 || thatDim == 0) return thisDim - thatDim ;
     	if(vector.equals(that.getVector())) return 0;  // return 0 if equal
     	
-    	Integer thatDim = that.getDim();
-    	Integer thisDim = dim;
-    	
-    	if(!thisDim.equals(thatDim)) return thisDim.compareTo(thatDim) ;
-    	
+
     	// if sizes are equal, just lexicographically compare coordinates
     	for(int i = 0; i < thisDim;i++){
     		Double thisC = this.getVector().getEntry(i);
@@ -64,32 +81,45 @@ public class Point implements WritableComparable<Point> {
 
     @Override
     public void write(DataOutput out) throws IOException {
-        int l = dim;
-        out.writeInt(l);
-        for(int i = 0; i < l;i++){
-        	out.writeDouble(vector.getEntry(i));
-        }
+    	if(dim == 0){
+    		out.writeInt(0);
+    		out.writeDouble(cost);
+    		
+    	} else {
+	        out.writeInt(dim);
+	        for(int i = 0; i < dim;i++){
+	        	out.writeDouble(vector.getEntry(i));
+	        }
+    	}
     }
 
     @Override
     public void readFields(DataInput in) throws IOException {
-        int l = in.readInt();
-        RealVector v = new ArrayRealVector(l);
-        for(int i = 0; i < l;i++){
-        	Double d = in.readDouble();
-        	v.setEntry(i,d);
+        this.dim = in.readInt();
+        if(dim == 0){
+        	this.cost = in.readDouble();
+        } else {
+	        RealVector v = new ArrayRealVector(dim);
+	        for(int i = 0; i < dim;i++){
+	        	Double d = in.readDouble();
+	        	v.setEntry(i,d);
+	        }
+	        this.vector = v;
         }
-        this.vector = v;
-        this.dim = l;            		
     }
 
     @Override
     public String toString() {
     	String out = "";
-        for(int i=0; i < dim;i++){
-        	Double d = vector.getEntry(i);
-        	out += d.toString() + " ";
-        }
+    	if(dim > 0){
+	        for(int i=0; i < dim;i++){
+	        	Double d = vector.getEntry(i);
+	        	out += d.toString() + " ";
+	        }
+    	} else {
+    		Double d = this.cost;
+    		out = "NULL " + d.toString();
+    	}
         return out;
     }
 }
