@@ -1,7 +1,5 @@
 import java.io.BufferedReader;
-import java.io.DataInput;
 import java.io.DataInputStream;
-import java.io.DataOutput;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.util.*;
@@ -9,6 +7,7 @@ import java.util.*;
 import org.apache.commons.math3.linear.ArrayRealVector;
 import org.apache.commons.math3.linear.RealVector;
 import org.apache.hadoop.fs.FileSystem;
+import org.apache.hadoop.fs.FileUtil;
 import org.apache.hadoop.fs.Path;
 import org.apache.hadoop.conf.*;
 import org.apache.hadoop.io.*;
@@ -21,7 +20,6 @@ import org.apache.hadoop.mapreduce.lib.output.TextOutputFormat;
 public class KMeans {
    public static class Map extends Mapper<LongWritable, Text, Point, Point> {
 	    public void map(LongWritable key, Text value, Context context) throws IOException, InterruptedException {
-	        Configuration conf =  context.getConfiguration();  
 	        List<Point> centroids = new ArrayList<Point>();
 	        
 	        // Read the centroid file set in the configuration
@@ -65,7 +63,7 @@ public class KMeans {
 				newCentroidVector = newCentroidVector.add(x.getVector());
 				count++;
 			}
-			newCentroidVector.mapDivide(count);
+			newCentroidVector = newCentroidVector.mapDivide(count);
 			Point newCentroid = new Point(newCentroidVector);
 			context.write(newCentroid,txt);
 	    }
@@ -73,8 +71,8 @@ public class KMeans {
         
 	 public static void main(String[] args) throws Exception {
 	    Configuration conf = new Configuration();
-	    conf.set("centroids","/user/rajb/c1.txt");
-	    int maxIter = 5;
+	    conf.set("centroids","/user/rbandyopadhyay/c1.txt");
+	    int maxIter = 20;
 	    for(int i = 0; i < maxIter; i++){
 	    	String iterStr = Integer.toString(i);
 		    // Run one iteration
@@ -94,13 +92,15 @@ public class KMeans {
 		    job.setOutputFormatClass(TextOutputFormat.class);
 		        
 		    FileInputFormat.addInputPath(job, new Path(args[0]));
-		    FileOutputFormat.setOutputPath(job, new Path(args[1]+iterStr));
+		    FileOutputFormat.setOutputPath(job, new Path(args[1]+ "_" + iterStr));
 	        
 		    job.waitForCompletion(true);
-	    }
 	    
-	    // merge centroid file and set new file location
-	    // run next iteration
+		    // merge centroid file and set new file location
+		    FileSystem fs = FileSystem.get(conf);
+		    FileUtil.copyMerge(fs, new Path(args[1]+ "_" + iterStr), fs, new Path("/user/rbandyopadhyay/c_"+iterStr+".txt"), false, conf, "");
+		    conf.set("centroids","/user/rbandyopadhyay/c_"+iterStr+".txt");
+	    }
 	 }
         
 }
